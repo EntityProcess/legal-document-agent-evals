@@ -21,7 +21,7 @@ import path from 'node:path';
 const DEFAULT_ARTIFACT_ROOT = '.agentv/harness-artifacts/stateful-swarm';
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
 const DEFAULT_TIMEOUT_SECONDS = 600;
-const DEFAULT_MAX_DOC_CHARS = 60_000;
+const DEFAULT_MAX_DOC_CHARS = 500_000;
 
 type CliArgs = {
   readonly checkOnly: boolean;
@@ -204,7 +204,7 @@ function extractDocuments(taskDir: string, files: readonly string[]): readonly D
 
 function fallbackText(file: string): string {
   const ext = path.extname(file).toLowerCase();
-  if (['.md', '.txt', '.json', '.csv', '.tsv'].includes(ext)) return readFileSync(file, 'utf8');
+  if (['.md', '.txt', '.json', '.csv', '.tsv', '.eml'].includes(ext)) return readFileSync(file, 'utf8');
   return `(Document ${path.basename(file)} is a native ${ext || 'binary'} file; text extraction failed.)`;
 }
 
@@ -222,16 +222,58 @@ function deliverableNames(task: HarveyTask): readonly string[] {
 }
 
 function docContext(docs: readonly DocumentExcerpt[]): string {
-  const maxChars = numberEnv('STATEFUL_SWARM_MAX_DOC_CHARS') ?? DEFAULT_MAX_DOC_CHARS;
-  let remaining = maxChars;
-  const sections: string[] = [];
-  for (const doc of docs) {
-    if (remaining <= 0) break;
-    const text = doc.text.slice(0, remaining);
-    remaining -= text.length;
-    sections.push(`--- ${doc.file} ---\n${text}`);
+  const maxChars = Math.max(1, numberEnv('STATEFUL_SWARM_MAX_DOC_CHARS') ?? DEFAULT_MAX_DOC_CHARS);
+  const totalChars = docs.reduce((sum, doc) => sum + doc.text.length, 0);
+  if (totalChars <= maxChars) {
+    return docs.map((doc) => `--- ${doc.file} (${doc.text.length} chars) ---\n${doc.text}`).join('\n\n');
   }
-  return sections.join('\n\n');
+
+  const budgets = fairDocBudgets(docs, maxChars);
+  return docs.map((doc, index) => {
+    const excerpt = balancedExcerpt(doc.text, budgets[index] ?? 1);
+    const omitted = Math.max(0, doc.text.length - excerpt.sourceCharsIncluded);
+    const suffix = omitted > 0 ? `; ${omitted} chars omitted` : '';
+    return `--- ${doc.file} (${doc.text.length} chars; excerpted to ${excerpt.sourceCharsIncluded} source chars${suffix}) ---\n${excerpt.text}`;
+  }).join('\n\n');
+}
+
+function fairDocBudgets(docs: readonly DocumentExcerpt[], maxChars: number): readonly number[] {
+  if (docs.length === 0) return [];
+  const floorPerDoc = Math.max(1, Math.min(2_000, Math.floor(maxChars / docs.length)));
+  const budgets = docs.map((doc) => Math.min(doc.text.length, floorPerDoc));
+  let remaining = Math.max(0, maxChars - budgets.reduce((sum, budget) => sum + budget, 0));
+
+  while (remaining > 0) {
+    const expandable = docs
+      .map((doc, index) => ({ index, need: doc.text.length - (budgets[index] ?? 0) }))
+      .filter((entry) => entry.need > 0);
+    if (expandable.length === 0) break;
+
+    const fairShare = Math.max(1, Math.floor(remaining / expandable.length));
+    let allocated = 0;
+    for (const entry of expandable) {
+      if (remaining <= 0) break;
+      const add = Math.min(entry.need, fairShare, remaining);
+      budgets[entry.index] = (budgets[entry.index] ?? 0) + add;
+      remaining -= add;
+      allocated += add;
+    }
+    if (allocated === 0) break;
+  }
+
+  return budgets;
+}
+
+function balancedExcerpt(text: string, budget: number): { readonly text: string; readonly sourceCharsIncluded: number } {
+  if (text.length <= budget) return { text, sourceCharsIncluded: text.length };
+  if (budget <= 400) return { text: text.slice(0, budget), sourceCharsIncluded: budget };
+
+  const marker = '\n\n[... middle omitted so every document remains represented ...]\n\n';
+  const sourceBudget = Math.max(1, budget - marker.length);
+  const headChars = Math.ceil(sourceBudget * 0.65);
+  const tailChars = Math.max(0, sourceBudget - headChars);
+  const excerpt = `${text.slice(0, headChars)}${marker}${tailChars > 0 ? text.slice(-tailChars) : ''}`;
+  return { text: excerpt, sourceCharsIncluded: sourceBudget };
 }
 
 async function openAiComplete(system: string, user: string): Promise<{ text: string; usage: ModelUsage }> {
@@ -447,6 +489,9 @@ import json
 import sys
 import zipfile
 import xml.etree.ElementTree as ET
+from email import policy
+from email.parser import BytesParser
+from html.parser import HTMLParser
 from pathlib import Path
 
 NS = {
@@ -497,6 +542,75 @@ def pptx(path):
                 lines.append(f"=== {slide_name} ===\n{text}")
     return "\n\n".join(lines)
 
+class TextOnlyHtmlParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.parts = []
+
+    def handle_data(self, data):
+        if data.strip():
+            self.parts.append(data.strip())
+
+    def text(self):
+        return "\n".join(self.parts)
+
+def html_to_text(html):
+    parser = TextOnlyHtmlParser()
+    parser.feed(html)
+    return parser.text()
+
+def content_to_text(part):
+    try:
+        content = part.get_content()
+    except Exception:
+        payload = part.get_payload(decode=True) or b""
+        charset = part.get_content_charset() or "utf-8"
+        return payload.decode(charset, errors="replace")
+    if isinstance(content, bytes):
+        charset = part.get_content_charset() or "utf-8"
+        return content.decode(charset, errors="replace")
+    return str(content)
+
+def eml(path):
+    with open(path, "rb") as handle:
+        message = BytesParser(policy=policy.default).parse(handle)
+
+    lines = []
+    for header in ["From", "To", "Cc", "Date", "Subject"]:
+        value = message.get(header)
+        if value:
+            lines.append(f"{header}: {value}")
+
+    plain_parts = []
+    html_parts = []
+    attachments = []
+    parts = message.walk() if message.is_multipart() else [message]
+    for part in parts:
+        if part.is_multipart():
+            continue
+        content_type = part.get_content_type()
+        disposition = part.get_content_disposition()
+        filename = part.get_filename()
+        if disposition == "attachment" or filename:
+            attachments.append(filename or content_type)
+            continue
+        if content_type == "text/plain":
+            plain_parts.append(content_to_text(part))
+        elif content_type == "text/html":
+            html_parts.append(html_to_text(content_to_text(part)))
+
+    body = "\n\n".join(part.strip() for part in plain_parts if part.strip())
+    if not body:
+        body = "\n\n".join(part.strip() for part in html_parts if part.strip())
+
+    if body:
+        lines.extend(["", body])
+    if attachments:
+        lines.extend(["", "Attachments: " + ", ".join(attachments)])
+
+    text = "\n".join(lines).strip()
+    return text or Path(path).read_text(encoding="utf-8", errors="replace")
+
 def extract(path):
     suffix = Path(path).suffix.lower()
     if suffix == ".docx":
@@ -505,6 +619,8 @@ def extract(path):
         return xlsx(path)
     if suffix == ".pptx":
         return pptx(path)
+    if suffix == ".eml":
+        return eml(path)
     if suffix in {".md", ".txt", ".json", ".csv", ".tsv"}:
         return Path(path).read_text(encoding="utf-8", errors="replace")
     return f"(Native {suffix or 'binary'} file preserved at {Path(path).name}; no extractor configured.)"

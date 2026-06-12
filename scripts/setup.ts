@@ -89,11 +89,12 @@ function providerChecks(options?: { readonly forceStateful?: boolean; readonly f
     const graderTarget = env('GRADER_TARGET') ?? 'openai-grader';
     if (graderTarget === 'openai-grader') {
       checks.push({ ok: Boolean(env('OPENAI_MODEL')), message: 'Set OPENAI_MODEL for the AgentV grader target.' });
-    }
-    if (graderTarget === 'azure-grader') {
+    } else if (graderTarget === 'azure-grader') {
       checks.push({ ok: Boolean(env('AZURE_OPENAI_ENDPOINT')), message: 'Set AZURE_OPENAI_ENDPOINT for azure-grader.' });
       checks.push({ ok: Boolean(env('AZURE_OPENAI_API_KEY')), message: 'Set AZURE_OPENAI_API_KEY for azure-grader.' });
       checks.push({ ok: Boolean(env('AZURE_DEPLOYMENT_NAME')), message: 'Set AZURE_DEPLOYMENT_NAME for azure-grader.' });
+    } else {
+      checks.push({ ok: false, message: 'Set GRADER_TARGET to openai-grader or azure-grader.' });
     }
   }
 

@@ -60,7 +60,7 @@ targets:
     use_target: legal-document-agent
 
   - name: grader
-    use_target: openai-grader
+    use_target: ${{ GRADER_TARGET }}
 
   - name: openai-grader
     provider: openai
