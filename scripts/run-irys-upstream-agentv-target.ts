@@ -11,7 +11,7 @@
  * this optional upstream target requires GEMINI_API_KEY, GOOGLE_API_KEY, or GEMINI_API_KEYS.
  *
  * The wrapper writes two outputs:
- * - Native Irys/Harvey artifacts under `.agentv/harness-artifacts/irys/`
+ * - Native Irys/Harvey artifacts under `.agentv/harness-artifacts/irys-upstream/`
  *   (blackboard snapshots, survival traces, deliverable files, metrics/status,
  *   and optional Harvey `scores.json` if scoring is enabled).
  * - A text response JSON at AgentV's `{OUTPUT_FILE}` path so the existing
