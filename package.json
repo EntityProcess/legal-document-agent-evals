@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "setup": "bun run scripts/setup.ts",
+    "setup:irys": "LEGAL_DOCUMENT_EVALS_ROOT=${LEGAL_DOCUMENT_EVALS_ROOT:-$PWD} AGENT_TARGET=legal-document-agent-irys bun run scripts/setup.ts --check-irys",
     "generate": "bun run scripts/generate-eval-from-harvey.ts",
     "validate": "agentv validate evals/legal-document-agent.eval.yaml",
-    "eval:dry": "agentv eval evals/legal-document-agent.eval.yaml --targets .agentv/targets.yaml --target legal-document-agent --test-id corporate-ma-extract-change-of-control-provisions --dry-run"
+    "eval:dry": "AGENT_TARGET=legal-document-agent GRADER_TARGET=${GRADER_TARGET:-openai-grader} agentv eval evals/legal-document-agent.eval.yaml --targets .agentv/targets.yaml --target legal-document-agent --test-id corporate-ma-extract-change-of-control-provisions --dry-run --threshold 0",
+    "eval:irys:smoke": "LEGAL_DOCUMENT_EVALS_ROOT=${LEGAL_DOCUMENT_EVALS_ROOT:-$PWD} AGENT_TARGET=legal-document-agent-irys GRADER_TARGET=${GRADER_TARGET:-openai-grader} agentv eval evals/legal-document-agent.eval.yaml --targets .agentv/targets.yaml --target legal-document-agent-irys --test-id corporate-ma-extract-change-of-control-provisions"
   }
 }
