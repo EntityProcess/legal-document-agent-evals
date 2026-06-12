@@ -15,11 +15,12 @@ function env(name: string): string | undefined {
   return value && value.trim() ? value.trim() : undefined;
 }
 
-function run(command: string, args: readonly string[], cwd?: string) {
+function run(command: string, args: readonly string[], cwd?: string, extraEnv: NodeJS.ProcessEnv = {}) {
   return spawnSync(command, [...args], {
     cwd,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, ...extraEnv },
   });
 }
 
@@ -58,7 +59,12 @@ function checkHarveyRepo(repoPath: string | undefined): Check[] {
   return checks;
 }
 
-function providerChecks(options?: { readonly forceStateful?: boolean; readonly forceIrysUpstream?: boolean; readonly skipGrader?: boolean }): Check[] {
+function providerChecks(options?: {
+  readonly forceStateful?: boolean;
+  readonly forceIrysUpstream?: boolean;
+  readonly skipIrysUpstreamLiteLlm?: boolean;
+  readonly skipGrader?: boolean;
+}): Check[] {
   const agentTarget = env('AGENT_TARGET') ?? 'legal-document-agent';
   const checks: Check[] = [];
 
@@ -83,6 +89,13 @@ function providerChecks(options?: { readonly forceStateful?: boolean; readonly f
     agentTarget === 'irys-stateful-swarms-upstream'
   ) {
     checks.push(...irysUpstreamTargetChecks());
+  }
+
+  if (!options?.skipIrysUpstreamLiteLlm && (
+    agentTarget === 'legal-document-agent-irys-upstream-litellm' ||
+    agentTarget === 'irys-stateful-swarms-upstream-litellm'
+  )) {
+    checks.push(...irysUpstreamLiteLlmTargetChecks());
   }
 
   if (!options?.skipGrader) {
@@ -145,6 +158,58 @@ function irysUpstreamTargetChecks(): Check[] {
   return checks;
 }
 
+function irysUpstreamLiteLlmTargetChecks(): Check[] {
+  const checks: Check[] = [
+    {
+      ok: Boolean(env('LEGAL_DOCUMENT_EVALS_ROOT')),
+      message: 'Set LEGAL_DOCUMENT_EVALS_ROOT to the absolute path of this checkout for the upstream Irys LiteLLM CLI-provider target.',
+    },
+    {
+      ok: Boolean(env('OPENAI_MODEL')),
+      message: 'Set OPENAI_MODEL for the OpenAI-compatible backend behind LiteLLM.',
+    },
+    {
+      ok: Boolean(env('OPENAI_API_KEY')),
+      message: 'Set OPENAI_API_KEY for the OpenAI-compatible backend behind LiteLLM.',
+    },
+  ];
+
+  const evalsRoot = env('LEGAL_DOCUMENT_EVALS_ROOT');
+  if (evalsRoot) {
+    checks.push({
+      ok: existsSync(path.join(path.resolve(evalsRoot), 'scripts/run-irys-upstream-agentv-target.ts')),
+      message: 'LEGAL_DOCUMENT_EVALS_ROOT must point at this checkout with scripts/run-irys-upstream-agentv-target.ts.',
+    });
+  }
+
+  const irysRepo = env('IRYS_STATEFUL_SWARMS_REPO_PATH');
+  if (irysRepo) {
+    checks.push({
+      ok: existsSync(path.join(path.resolve(irysRepo), 'pyproject.toml')),
+      message: 'IRYS_STATEFUL_SWARMS_REPO_PATH must point at a local dl1683/irys-stateful-swarms checkout.',
+    });
+  }
+
+  if (checks.some((check) => !check.ok)) {
+    return checks;
+  }
+
+  const preflight = run('bun', ['run', 'scripts/run-irys-upstream-agentv-target.ts', '--check-only'], undefined, {
+    IRYS_USE_LITELLM_PROXY: 'true',
+  });
+  if (preflight.status !== 0) {
+    const detail = `${preflight.stderr.trim() || preflight.stdout.trim()}`.trim();
+    checks.push({
+      ok: false,
+      message:
+        detail ||
+        'Upstream Irys LiteLLM CLI preflight failed. Start LiteLLM with `bun run start:irys-litellm-proxy`.',
+    });
+  }
+
+  return checks;
+}
+
 function statefulSwarmTargetChecks(): Check[] {
   const checks: Check[] = [
     {
@@ -192,15 +257,18 @@ function main() {
   const checkSource = process.argv.includes('--check-source');
   const checkStateful = process.argv.includes('--check-stateful-swarm');
   const checkIrysUpstream = process.argv.includes('--check-irys-upstream') || process.argv.includes('--check-irys');
+  const checkIrysUpstreamLiteLlm = process.argv.includes('--check-irys-upstream-litellm');
   const checks = [
     { ok: existsSync('.agentv/targets.yaml'), message: '.agentv/targets.yaml must exist.' },
     { ok: existsSync('evals/legal-document-agent.eval.yaml'), message: 'evals/legal-document-agent.eval.yaml must exist.' },
     ...(checkSource ? checkHarveyRepo(env('HARVEY_LABS_REPO_PATH')) : []),
     ...providerChecks({
       forceStateful: checkStateful,
-      forceIrysUpstream: checkIrysUpstream,
-      skipGrader: checkStateful || checkIrysUpstream,
+      forceIrysUpstream: checkIrysUpstream && !checkIrysUpstreamLiteLlm,
+      skipIrysUpstreamLiteLlm: checkIrysUpstreamLiteLlm,
+      skipGrader: checkStateful || checkIrysUpstream || checkIrysUpstreamLiteLlm,
     }),
+    ...(checkIrysUpstreamLiteLlm ? irysUpstreamLiteLlmTargetChecks() : []),
   ];
   const failures = checks.filter((check) => !check.ok);
 
