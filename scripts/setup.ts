@@ -58,11 +58,11 @@ function checkHarveyRepo(repoPath: string | undefined): Check[] {
   return checks;
 }
 
-function providerChecks(options?: { readonly forceIrys?: boolean; readonly skipGrader?: boolean }): Check[] {
+function providerChecks(options?: { readonly forceStateful?: boolean; readonly forceIrysUpstream?: boolean; readonly skipGrader?: boolean }): Check[] {
   const agentTarget = env('AGENT_TARGET') ?? 'legal-document-agent';
   const checks: Check[] = [];
 
-  if (!options?.forceIrys && (agentTarget === 'legal-document-agent' || agentTarget === 'codex')) {
+  if (!options?.forceStateful && !options?.forceIrysUpstream && (agentTarget === 'legal-document-agent' || agentTarget === 'codex')) {
     checks.push(
       { ok: Boolean(env('CODEX_EXECUTABLE')), message: 'Set CODEX_EXECUTABLE for the coding-agent target.' },
       { ok: Boolean(env('CODEX_MODEL')), message: 'Set CODEX_MODEL for the coding-agent target.' },
@@ -70,11 +70,19 @@ function providerChecks(options?: { readonly forceIrys?: boolean; readonly skipG
   }
 
   if (
-    options?.forceIrys ||
-    agentTarget === 'legal-document-agent-irys' ||
-    agentTarget === 'irys-stateful-swarms'
+    options?.forceStateful ||
+    agentTarget === 'legal-document-agent-stateful-swarm' ||
+    agentTarget === 'stateful-swarm'
   ) {
-    checks.push(...irysTargetChecks());
+    checks.push(...statefulSwarmTargetChecks());
+  }
+
+  if (
+    options?.forceIrysUpstream ||
+    agentTarget === 'legal-document-agent-irys-upstream' ||
+    agentTarget === 'irys-stateful-swarms-upstream'
+  ) {
+    checks.push(...irysUpstreamTargetChecks());
   }
 
   if (!options?.skipGrader) {
@@ -92,11 +100,11 @@ function providerChecks(options?: { readonly forceIrys?: boolean; readonly skipG
   return checks;
 }
 
-function irysTargetChecks(): Check[] {
+function irysUpstreamTargetChecks(): Check[] {
   const checks: Check[] = [
     {
       ok: Boolean(env('LEGAL_DOCUMENT_EVALS_ROOT')),
-      message: 'Set LEGAL_DOCUMENT_EVALS_ROOT to the absolute path of this checkout for the Irys CLI-provider target.',
+      message: 'Set LEGAL_DOCUMENT_EVALS_ROOT to the absolute path of this checkout for the upstream Irys CLI-provider target.',
     },
     {
       ok: Boolean(env('GEMINI_API_KEY') || env('GOOGLE_API_KEY') || env('GEMINI_API_KEYS')),
@@ -107,8 +115,8 @@ function irysTargetChecks(): Check[] {
   const evalsRoot = env('LEGAL_DOCUMENT_EVALS_ROOT');
   if (evalsRoot) {
     checks.push({
-      ok: existsSync(path.join(path.resolve(evalsRoot), 'scripts/run-irys-agentv-target.ts')),
-      message: 'LEGAL_DOCUMENT_EVALS_ROOT must point at this checkout with scripts/run-irys-agentv-target.ts.',
+      ok: existsSync(path.join(path.resolve(evalsRoot), 'scripts/run-irys-upstream-agentv-target.ts')),
+      message: 'LEGAL_DOCUMENT_EVALS_ROOT must point at this checkout with scripts/run-irys-upstream-agentv-target.ts.',
     });
   }
 
@@ -124,32 +132,74 @@ function irysTargetChecks(): Check[] {
     return checks;
   }
 
-  const preflight = run('bun', ['run', 'scripts/run-irys-agentv-target.ts', '--check-only']);
+  const preflight = run('bun', ['run', 'scripts/run-irys-upstream-agentv-target.ts', '--check-only']);
   if (preflight.status !== 0) {
     const detail = `${preflight.stderr.trim() || preflight.stdout.trim()}`.trim();
     checks.push({
       ok: false,
-      message: detail || 'Irys CLI preflight failed. Check IRYS_STATEFUL_SWARMS_REPO_PATH or IRYS_EXECUTABLE.',
+      message: detail || 'Upstream Irys CLI preflight failed. Check IRYS_STATEFUL_SWARMS_REPO_PATH or IRYS_EXECUTABLE.',
     });
   }
 
   return checks;
 }
 
+function statefulSwarmTargetChecks(): Check[] {
+  const checks: Check[] = [
+    {
+      ok: Boolean(env('LEGAL_DOCUMENT_EVALS_ROOT')),
+      message: 'Set LEGAL_DOCUMENT_EVALS_ROOT to the absolute path of this checkout for the stateful-swarm CLI-provider target.',
+    },
+  ];
+
+  if (!['1', 'true', 'yes'].includes((env('STATEFUL_SWARM_MOCK') ?? '').toLowerCase())) {
+    checks.push(
+      { ok: Boolean(env('OPENAI_MODEL')), message: 'Set OPENAI_MODEL for the stateful-swarm approximation target.' },
+      {
+        ok: Boolean(env('OPENAI_API_KEY')),
+        message: 'Set OPENAI_API_KEY for the OpenAI-compatible stateful-swarm approximation target, or set STATEFUL_SWARM_MOCK=true for offline contract checks.',
+      },
+    );
+  }
+
+  const evalsRoot = env('LEGAL_DOCUMENT_EVALS_ROOT');
+  if (evalsRoot) {
+    checks.push({
+      ok: existsSync(path.join(path.resolve(evalsRoot), 'scripts/run-stateful-swarm-agentv-target.ts')),
+      message: 'LEGAL_DOCUMENT_EVALS_ROOT must point at this checkout with scripts/run-stateful-swarm-agentv-target.ts.',
+    });
+  }
+
+  if (checks.some((check) => !check.ok)) return checks;
+
+  const preflight = run('bun', ['run', 'scripts/run-stateful-swarm-agentv-target.ts', '--check-only']);
+  if (preflight.status !== 0) {
+    const detail = `${preflight.stderr.trim() || preflight.stdout.trim()}`.trim();
+    checks.push({ ok: false, message: detail || 'Stateful-swarm CLI preflight failed.' });
+  }
+
+  return checks;
+}
+
 function ensureLocalDirectories(): void {
-  for (const dir of [env('CODEX_LOG_DIR'), env('IRYS_AGENTV_ARTIFACT_ROOT')]) {
+  for (const dir of [env('CODEX_LOG_DIR'), env('STATEFUL_SWARM_ARTIFACT_ROOT'), env('IRYS_AGENTV_ARTIFACT_ROOT')]) {
     if (dir) mkdirSync(path.resolve(dir), { recursive: true });
   }
 }
 
 function main() {
   const checkSource = process.argv.includes('--check-source');
-  const checkIrys = process.argv.includes('--check-irys');
+  const checkStateful = process.argv.includes('--check-stateful-swarm');
+  const checkIrysUpstream = process.argv.includes('--check-irys-upstream') || process.argv.includes('--check-irys');
   const checks = [
     { ok: existsSync('.agentv/targets.yaml'), message: '.agentv/targets.yaml must exist.' },
     { ok: existsSync('evals/legal-document-agent.eval.yaml'), message: 'evals/legal-document-agent.eval.yaml must exist.' },
     ...(checkSource ? checkHarveyRepo(env('HARVEY_LABS_REPO_PATH')) : []),
-    ...providerChecks({ forceIrys: checkIrys, skipGrader: checkIrys }),
+    ...providerChecks({
+      forceStateful: checkStateful,
+      forceIrysUpstream: checkIrysUpstream,
+      skipGrader: checkStateful || checkIrysUpstream,
+    }),
   ];
   const failures = checks.filter((check) => !check.ok);
 

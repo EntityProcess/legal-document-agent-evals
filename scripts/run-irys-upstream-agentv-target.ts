@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * AgentV CLI-provider adapter for the Irys/stateful-swarms Harvey LAB harness.
+ * AgentV CLI-provider adapter for the exact upstream Irys/stateful-swarms Harvey LAB harness.
  *
  * This keeps AgentV as the portable eval/result layer while delegating legal
  * document execution to the upstream harness used in the research notes:
@@ -8,7 +8,7 @@
  *   AgentV eval case -> this CLI target -> `irys run <harvey task dir>`
  *
  * Current inspected Irys source routes `irys run` through GeminiCaller, so
- * this target requires GEMINI_API_KEY, GOOGLE_API_KEY, or GEMINI_API_KEYS.
+ * this optional upstream target requires GEMINI_API_KEY, GOOGLE_API_KEY, or GEMINI_API_KEYS.
  *
  * The wrapper writes two outputs:
  * - Native Irys/Harvey artifacts under `.agentv/harness-artifacts/irys/`
@@ -28,7 +28,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const DEFAULT_ARTIFACT_ROOT = '.agentv/harness-artifacts/irys';
+const DEFAULT_ARTIFACT_ROOT = '.agentv/harness-artifacts/irys-upstream';
 const DEFAULT_IRYS_TIMEOUT_SECONDS = 60 * 60;
 
 type CliArgs = {
@@ -195,7 +195,7 @@ function checkOnly(): void {
   if (failures.length > 0) {
     throw new Error(
       [
-        'Irys/stateful-swarms target setup is incomplete.',
+        'Upstream Irys/stateful-swarms target setup is incomplete.',
         ...failures.map((failure) => `- ${failure}`),
         '',
         'No resolved secret values or private endpoints were printed.',
@@ -205,7 +205,7 @@ function checkOnly(): void {
 
   const help = runCommand(irysCommandArgs(['--help']), 30, irysWorkingDirectory());
   assertOk(help, 'Irys CLI preflight');
-  console.log('Irys/stateful-swarms target preflight passed.');
+  console.log('Upstream Irys/stateful-swarms target preflight passed.');
 }
 
 function readPrompt(promptFile: string | undefined): string {
@@ -428,7 +428,7 @@ function writeAgentVOutput(params: {
 
   const response = {
     text: [
-      `# Irys/stateful-swarms Harvey LAB output`,
+      `# Upstream Irys/stateful-swarms Harvey LAB output`,
       ``,
       `AgentV test: ${params.evalId ?? '(unknown)'}`,
       `Harvey LAB task: ${params.harveyTaskId}`,
@@ -496,7 +496,7 @@ function main(): void {
     throw new Error('Missing --output-file from AgentV CLI provider.');
   }
   if (!hasIrysCredential()) {
-    throw new Error(`Irys/stateful-swarms credentials are missing. ${credentialHelp()}`);
+    throw new Error(`Upstream Irys/stateful-swarms credentials are missing. ${credentialHelp()}`);
   }
 
   const prompt = readPrompt(args.promptFile);
