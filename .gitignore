@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+
+node_modules/
+.agentv/cache.json
+.agentv/results/
+.agentv/workspaces/
+.agentv/workspace-pool/
+.agentv/logs/
+.agentv/codex-workspaces/
+results/
+tmp/
+
+# Local source checkout used for regeneration only.
+harvey-labs/

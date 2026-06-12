@@ -1,0 +1,47 @@
+schema: agentv-targets-v2.2
+
+targets:
+  - name: default
+    use_target: "${{ AGENT_TARGET }}"
+
+  - name: legal-document-agent
+    provider: codex
+    executable: "${{ CODEX_EXECUTABLE }}"
+    model: "${{ CODEX_MODEL }}"
+    model_reasoning_effort: "${{ CODEX_REASONING_EFFORT }}"
+    log_dir: "${{ CODEX_LOG_DIR }}"
+    stream_log: raw
+    grader_target: grader
+    system_prompt: |
+      You are completing public legal/document-intelligence benchmark tasks.
+      Work from the files present in the AgentV workspace; do not use private client data,
+      private endpoints, paid legal research systems, or secrets.
+      Read the task source documents before answering. Return the requested work product as
+      concise Markdown sections, with enough concrete detail and source references for a
+      supervising reviewer to apply the rubric.
+
+  - name: codex
+    use_target: legal-document-agent
+
+  - name: grader
+    use_target: "${{ GRADER_TARGET }}"
+
+  - name: openai-grader
+    provider: openai
+    base_url: "${{ OPENAI_BASE_URL }}"
+    api_key: "${{ OPENAI_API_KEY }}"
+    model: "${{ OPENAI_MODEL }}"
+
+  - name: azure-grader
+    provider: azure
+    endpoint: "${{ AZURE_OPENAI_ENDPOINT }}"
+    api_key: "${{ AZURE_OPENAI_API_KEY }}"
+    model: "${{ AZURE_DEPLOYMENT_NAME }}"
+    version: "${{ AZURE_OPENAI_API_VERSION }}"
+
+  - name: azure
+    provider: openai
+    base_url: "${{ AZURE_OPENAI_RESPONSES_BASE_URL }}"
+    api_key: "${{ AZURE_OPENAI_API_KEY }}"
+    model: "${{ AZURE_DEPLOYMENT_NAME }}"
+    api_format: responses

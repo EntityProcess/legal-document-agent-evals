@@ -1,0 +1,10 @@
+required_version: ">=4.32.0"
+eval_patterns:
+  - evals/**/*.eval.yaml
+execution:
+  workers: 1
+results:
+  mode: github
+  repo: EntityProcess/legal-document-agent-evals-results
+  auto_push: false
+  branch_prefix: eval-results

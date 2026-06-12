@@ -1,0 +1,12 @@
+{
+  "name": "legal-document-agent-evals",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "setup": "bun run scripts/setup.ts",
+    "generate": "bun run scripts/generate-eval-from-harvey.ts",
+    "validate": "agentv validate evals/legal-document-agent.eval.yaml",
+    "eval:dry": "agentv eval evals/legal-document-agent.eval.yaml --targets .agentv/targets.yaml --target legal-document-agent --test-id corporate-ma-extract-change-of-control-provisions --dry-run"
+  }
+}
