@@ -22,6 +22,11 @@ This repo intentionally separates three layers:
 
 The AgentV-native target reads the skill text and uses it as the behavior contract for the staged document-intelligence run. Upstream Irys/stateful-swarms remains inspiration/reference for the workflow pattern, not deterministic acceptance for this repo.
 
+
+## Baseline results
+
+A public baseline report is available in [BASELINE_RESULTS.md](BASELINE_RESULTS.md). It explains the live `document-intelligence` run, per-case scores, `.eml` coverage, limitations, and how the published AgentV artifacts demonstrate the eval-pack pattern.
+
 ## Source pin
 
 The initial suite is pinned to Harvey LAB commit:
