@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
 const HARVEY_PINNED_COMMIT = '38936c4f07aa20c84b79abff7b4ad82d1f5902a9';
+const DEFAULT_DOCUMENT_INTELLIGENCE_SKILL_PATH = 'skills/document-intelligence/SKILL.md';
 
 type Check = {
   readonly ok: boolean;
@@ -21,6 +22,11 @@ function run(command: string, args: readonly string[], cwd?: string) {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+}
+
+function documentIntelligenceSkillPath(evalsRoot: string): string {
+  const configured = env('DOCUMENT_INTELLIGENCE_SKILL_PATH') ?? DEFAULT_DOCUMENT_INTELLIGENCE_SKILL_PATH;
+  return path.isAbsolute(configured) ? configured : path.join(evalsRoot, configured);
 }
 
 function checkHarveyRepo(repoPath: string | undefined): Check[] {
@@ -72,7 +78,8 @@ function providerChecks(options?: { readonly forceStateful?: boolean; readonly f
   if (
     options?.forceStateful ||
     agentTarget === 'legal-document-agent-stateful-swarm' ||
-    agentTarget === 'stateful-swarm'
+    agentTarget === 'stateful-swarm' ||
+    agentTarget === 'document-intelligence'
   ) {
     checks.push(...statefulSwarmTargetChecks());
   }
@@ -155,19 +162,24 @@ function statefulSwarmTargetChecks(): Check[] {
 
   if (!['1', 'true', 'yes'].includes((env('STATEFUL_SWARM_MOCK') ?? '').toLowerCase())) {
     checks.push(
-      { ok: Boolean(env('OPENAI_MODEL')), message: 'Set OPENAI_MODEL for the stateful-swarm approximation target.' },
+      { ok: Boolean(env('OPENAI_MODEL')), message: 'Set OPENAI_MODEL for the document-intelligence/stateful-swarm target.' },
       {
         ok: Boolean(env('OPENAI_API_KEY')),
-        message: 'Set OPENAI_API_KEY for the OpenAI-compatible stateful-swarm approximation target, or set STATEFUL_SWARM_MOCK=true for offline contract checks.',
+        message: 'Set OPENAI_API_KEY for the OpenAI-compatible document-intelligence/stateful-swarm target, or set STATEFUL_SWARM_MOCK=true for offline contract checks.',
       },
     );
   }
 
   const evalsRoot = env('LEGAL_DOCUMENT_EVALS_ROOT');
   if (evalsRoot) {
+    const absoluteRoot = path.resolve(evalsRoot);
     checks.push({
-      ok: existsSync(path.join(path.resolve(evalsRoot), 'scripts/run-stateful-swarm-agentv-target.ts')),
+      ok: existsSync(path.join(absoluteRoot, 'scripts/run-stateful-swarm-agentv-target.ts')),
       message: 'LEGAL_DOCUMENT_EVALS_ROOT must point at this checkout with scripts/run-stateful-swarm-agentv-target.ts.',
+    });
+    checks.push({
+      ok: existsSync(documentIntelligenceSkillPath(absoluteRoot)),
+      message: 'Document-intelligence workflow skill must exist at DOCUMENT_INTELLIGENCE_SKILL_PATH or skills/document-intelligence/SKILL.md.',
     });
   }
 

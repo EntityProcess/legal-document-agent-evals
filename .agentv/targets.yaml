@@ -38,6 +38,9 @@ targets:
   - name: stateful-swarm
     use_target: legal-document-agent-stateful-swarm
 
+  - name: document-intelligence
+    use_target: legal-document-agent-stateful-swarm
+
   - name: legal-document-agent-irys-upstream
     provider: cli
     command: >-

@@ -1,12 +1,12 @@
 #!/usr/bin/env bun
 /**
- * AgentV CLI-provider adapter for an Irys-inspired stateful-swarm approximation.
+ * AgentV CLI-provider adapter for the document-intelligence skill workflow.
  *
  * This is intentionally not the upstream Irys/stateful-swarms harness. It keeps
- * AgentV eval YAML canonical while approximating the useful harness ideas in a
- * provider-flexible wrapper: ingest documents, build staged plan/extract/analyze
- * state, persist a blackboard artifact, synthesize a final answer, and emit the
- * AgentV CLI-provider JSON contract.
+ * AgentV eval YAML canonical while expressing target-agent behavior as a
+ * reusable skill workflow: ingest documents, load skills/document-intelligence,
+ * build staged plan/extract/analyze state, persist a blackboard artifact,
+ * synthesize a final answer, and emit the AgentV CLI-provider JSON contract.
  *
  * Live mode uses an OpenAI-compatible chat-completions endpoint controlled by
  * OPENAI_API_KEY, OPENAI_BASE_URL, and OPENAI_MODEL. Deterministic mock mode
@@ -22,6 +22,7 @@ const DEFAULT_ARTIFACT_ROOT = '.agentv/harness-artifacts/stateful-swarm';
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
 const DEFAULT_TIMEOUT_SECONDS = 600;
 const DEFAULT_MAX_DOC_CHARS = 500_000;
+const DEFAULT_WORKFLOW_SKILL_PATH = 'skills/document-intelligence/SKILL.md';
 
 type CliArgs = {
   readonly checkOnly: boolean;
@@ -35,7 +36,6 @@ type HarveyTask = {
   readonly work_type?: string;
   readonly instructions?: string;
   readonly deliverables?: unknown;
-  readonly criteria?: readonly { readonly id?: string; readonly title?: string; readonly match_criteria?: string }[];
 };
 
 type DocumentExcerpt = {
@@ -53,6 +53,11 @@ type BlackboardEntry = {
 type ModelUsage = {
   readonly input: number;
   readonly output: number;
+};
+
+type WorkflowSkill = {
+  readonly path: string;
+  readonly text: string;
 };
 
 function env(name: string): string | undefined {
@@ -105,14 +110,19 @@ function checkOnly(): void {
     failures.push('LEGAL_DOCUMENT_EVALS_ROOT must point at this checkout with scripts/run-stateful-swarm-agentv-target.ts.');
   }
 
+  const skill = resolveWorkflowSkillPath();
+  if (!existsSync(skill)) {
+    failures.push(`Document-intelligence workflow skill must exist: ${displayPath(skill)}`);
+  }
+
   if (!mockMode()) {
-    if (!env('OPENAI_MODEL')) failures.push('Set OPENAI_MODEL for the stateful-swarm approximation target.');
-    if (!env('OPENAI_API_KEY')) failures.push('Set OPENAI_API_KEY for the OpenAI-compatible stateful-swarm target, or set STATEFUL_SWARM_MOCK=true for offline contract checks.');
+    if (!env('OPENAI_MODEL')) failures.push('Set OPENAI_MODEL for the document-intelligence/stateful-swarm target.');
+    if (!env('OPENAI_API_KEY')) failures.push('Set OPENAI_API_KEY for the OpenAI-compatible document-intelligence/stateful-swarm target, or set STATEFUL_SWARM_MOCK=true for offline contract checks.');
   }
 
   if (failures.length > 0) {
     throw new Error([
-      'Stateful-swarm approximation target setup is incomplete.',
+      'Document-intelligence/stateful-swarm target setup is incomplete.',
       ...failures.map((failure) => `- ${failure}`),
       '',
       'No resolved secret values or private endpoints were printed.',
@@ -120,8 +130,8 @@ function checkOnly(): void {
   }
 
   console.log(mockMode()
-    ? 'Stateful-swarm approximation preflight passed in deterministic mock mode.'
-    : 'Stateful-swarm approximation preflight passed for OpenAI-compatible live mode.');
+    ? 'Document-intelligence/stateful-swarm preflight passed in deterministic mock mode.'
+    : 'Document-intelligence/stateful-swarm preflight passed for OpenAI-compatible live mode.');
 }
 
 function readPrompt(promptFile: string | undefined): string {
@@ -159,6 +169,28 @@ function resolveHarveyRoot(): string {
 function artifactRoot(): string {
   const configured = env('STATEFUL_SWARM_ARTIFACT_ROOT') ?? DEFAULT_ARTIFACT_ROOT;
   return path.isAbsolute(configured) ? configured : path.resolve(repoRoot(), configured);
+}
+
+function resolveWorkflowSkillPath(): string {
+  const configured = env('DOCUMENT_INTELLIGENCE_SKILL_PATH') ?? DEFAULT_WORKFLOW_SKILL_PATH;
+  return path.isAbsolute(configured) ? configured : path.resolve(repoRoot(), configured);
+}
+
+function loadWorkflowSkill(): WorkflowSkill {
+  const skillPath = resolveWorkflowSkillPath();
+  if (!existsSync(skillPath)) {
+    throw new Error(`Document-intelligence workflow skill not found: ${displayPath(skillPath)}`);
+  }
+  return { path: skillPath, text: stripYamlFrontmatter(readFileSync(skillPath, 'utf8')).trim() };
+}
+
+function stripYamlFrontmatter(markdown: string): string {
+  return markdown.replace(/^---\n[\s\S]*?\n---\n?/, '');
+}
+
+function displayPath(pathName: string): string {
+  const relative = path.relative(repoRoot(), pathName);
+  return relative && !relative.startsWith('..') && !path.isAbsolute(relative) ? relative : '<external path>';
 }
 
 function runTimestamp(): string {
@@ -329,7 +361,7 @@ function mockComplete(label: string, task: HarveyTask, docs: readonly DocumentEx
   };
 }
 
-async function stagedRun(task: HarveyTask, docs: readonly DocumentExcerpt[]): Promise<{ finalAnswer: string; entries: readonly BlackboardEntry[]; usage: ModelUsage }> {
+async function stagedRun(task: HarveyTask, docs: readonly DocumentExcerpt[], workflowSkill: WorkflowSkill): Promise<{ finalAnswer: string; entries: readonly BlackboardEntry[]; usage: ModelUsage }> {
   const entries: BlackboardEntry[] = [];
   const usage: ModelUsage = { input: 0, output: 0 };
   const addUsage = (next: ModelUsage) => {
@@ -337,10 +369,16 @@ async function stagedRun(task: HarveyTask, docs: readonly DocumentExcerpt[]): Pr
     (usage as { input: number; output: number }).output += next.output;
   };
 
-  const system = 'You are a legal document analysis agent using a staged stateful-swarm workflow. Be precise, cite source filenames, preserve uncertainty, and do not invent facts.';
+  const system = [
+    'You are a document-intelligence agent using the workflow skill below.',
+    'Be precise, cite source filenames, preserve uncertainty, and do not invent facts.',
+    'Do not inspect, request, mention, or optimize against grader prompts, rubric criteria, hidden expected answers, or scoring logic.',
+    '',
+    'DOCUMENT-INTELLIGENCE WORKFLOW SKILL:',
+    workflowSkill.text,
+  ].join('\n');
   const context = docContext(docs);
   const deliverables = deliverableNames(task).join(', ') || 'Markdown answer';
-  const criteria = (task.criteria ?? []).slice(0, 80).map((criterion) => `${criterion.id}: ${criterion.title}\n${criterion.match_criteria}`).join('\n\n');
 
   const complete = async (label: string, user: string) => {
     const result = mockMode() ? mockComplete(label, task, docs) : await openAiComplete(system, user);
@@ -348,18 +386,18 @@ async function stagedRun(task: HarveyTask, docs: readonly DocumentExcerpt[]): Pr
     return result.text;
   };
 
-  const plan = await complete('plan', `Task title: ${task.title}\nInstructions: ${task.instructions}\nDeliverables: ${deliverables}\nDocuments: ${docs.map((doc) => doc.file).join(', ')}\n\nCreate a concise investigation plan as JSON.`);
+  const plan = await complete('plan', `Task title: ${task.title}\nInstructions: ${task.instructions}\nDeliverables: ${deliverables}\nDocuments: ${docs.map((doc) => doc.file).join(', ')}\n\nCreate a concise investigation plan as JSON before reading deeply. Include source triage, normalized entities to track, signals/open questions, and comparison dimensions. Do not use grader criteria or hidden scoring logic.`);
   entries.push({ id: 'plan-001', stage: 'plan', content: parseMaybeJson(plan), sources: docs.map((doc) => doc.file) });
 
-  const extracted = await complete('extract', `Use this investigation plan to extract relevant observations with source filenames. Return JSON entries with source, quote_or_summary, and relevance.\n\nPLAN:\n${plan}\n\nDOCUMENT EXCERPTS:\n${context}`);
+  const extracted = await complete('extract', `Use this investigation plan and the workflow skill to extract relevant observations. Return JSON entries with normalized_entity, source, section_or_locator, quote_or_summary, signal, open_question, and relevance.\n\nPLAN:\n${plan}\n\nDOCUMENT EXCERPTS:\n${context}`);
   entries.push({ id: 'extract-001', stage: 'extract', content: parseMaybeJson(extracted), sources: docs.map((doc) => doc.file) });
 
-  const analysis = await complete('analyze', `Analyze the extracted observations against the task and criteria. Identify risks, gaps, and provenance-sensitive conclusions.\n\nTASK:\n${task.instructions}\n\nCRITERIA:\n${criteria}\n\nEXTRACTED STATE:\n${extracted}`);
+  const analysis = await complete('analyze', `Analyze the extracted observations against the task instructions only. Identify risks, document comparisons, gaps, conflicting evidence, resolved/open questions, and provenance-sensitive conclusions. Do not use or mention grader criteria.\n\nTASK:\n${task.instructions}\n\nEXTRACTED STATE:\n${extracted}`);
   entries.push({ id: 'analyze-001', stage: 'analyze', content: parseMaybeJson(analysis), sources: docs.map((doc) => doc.file) });
 
   const finalAnswer = mockMode()
     ? mockFinalAnswer(task, docs, entries)
-    : await complete('synthesize', `Synthesize the final answer in Markdown. Create one section per requested deliverable and cite source filenames where feasible.\n\nTASK:\n${task.instructions}\n\nDELIVERABLES:\n${deliverables}\n\nBLACKBOARD STATE:\n${JSON.stringify(entries, null, 2)}`);
+    : await complete('synthesize', `Synthesize the final answer in Markdown. Create one section per requested deliverable, cite source filenames where feasible, and run the workflow skill's final verification before answering. Do not expose hidden evaluator or rubric reasoning.\n\nTASK:\n${task.instructions}\n\nDELIVERABLES:\n${deliverables}\n\nBLACKBOARD STATE:\n${JSON.stringify(entries, null, 2)}`);
   entries.push({ id: 'synthesize-001', stage: 'synthesize', content: finalAnswer, sources: docs.map((doc) => doc.file) });
 
   return { finalAnswer, entries, usage };
@@ -404,6 +442,8 @@ function writeAgentVOutput(params: {
 }): void {
   const metadata = {
     harness: 'agentv-native-stateful-swarm-approximation',
+    agent_behavior: 'document-intelligence-skill-workflow',
+    workflow_skill: displayPath(resolveWorkflowSkillPath()),
     inspired_by: 'irys-stateful-swarms',
     fidelity: 'approximation_not_upstream_irys',
     harvey_task_id: params.harveyTaskId,
@@ -443,7 +483,7 @@ async function main(): Promise<void> {
   }
   if (!args.outputFile) throw new Error('Missing --output-file from AgentV CLI provider.');
   if (!mockMode() && (!env('OPENAI_MODEL') || !env('OPENAI_API_KEY'))) {
-    throw new Error('Stateful-swarm approximation live mode requires OPENAI_MODEL and OPENAI_API_KEY. Use STATEFUL_SWARM_MOCK=true for deterministic offline checks.');
+    throw new Error('Document-intelligence/stateful-swarm live mode requires OPENAI_MODEL and OPENAI_API_KEY. Use STATEFUL_SWARM_MOCK=true for deterministic offline checks.');
   }
 
   const start = Date.now();
@@ -453,16 +493,20 @@ async function main(): Promise<void> {
   const taskDir = path.join(harveyRoot, 'tasks', harveyTaskId);
   const task = loadTask(taskDir);
   const docs = extractDocuments(taskDir, listDocumentFiles(taskDir));
+  const workflowSkill = loadWorkflowSkill();
   const runDir = path.join(artifactRoot(), runTimestamp(), safeSegment(args.evalId ?? harveyTaskId));
   mkdirSync(runDir, { recursive: true });
 
   writeJson(path.join(runDir, 'document-inventory.json'), docs.map((doc) => ({ file: doc.file, chars: doc.text.length })));
   writeFileSync(path.join(runDir, 'document-excerpts.md'), docContext(docs));
+  writeFileSync(path.join(runDir, 'workflow-skill.md'), workflowSkill.text);
 
-  const { finalAnswer, entries, usage } = await stagedRun(task, docs);
+  const { finalAnswer, entries, usage } = await stagedRun(task, docs, workflowSkill);
   writeJson(path.join(runDir, 'blackboard.json'), { entries });
   writeJson(path.join(runDir, 'state.json'), {
     harness: 'agentv-native-stateful-swarm-approximation',
+    agent_behavior: 'document-intelligence-skill-workflow',
+    workflow_skill: displayPath(workflowSkill.path),
     inspired_by: 'irys-stateful-swarms',
     fidelity: 'approximation_not_upstream_irys',
     task: { id: harveyTaskId, title: task.title, deliverables: deliverableNames(task) },
