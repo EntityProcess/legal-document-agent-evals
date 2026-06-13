@@ -9,6 +9,7 @@
     "setup:irys-upstream": "LEGAL_DOCUMENT_EVALS_ROOT=${LEGAL_DOCUMENT_EVALS_ROOT:-$PWD} AGENT_TARGET=legal-document-agent-irys-upstream bun run scripts/setup.ts --check-irys-upstream",
     "generate": "bun run scripts/generate-eval-from-harvey.ts",
     "validate": "GRADER_TARGET=${GRADER_TARGET:-openai-grader} agentv validate evals/legal-document-agent.eval.yaml",
+    "check:harvey-grader-prompt": "LEGAL_DOCUMENT_EVALS_ROOT=${LEGAL_DOCUMENT_EVALS_ROOT:-$PWD} bun run scripts/check-harvey-grader-prompt.ts",
     "check:stateful-swarm-contract": "GRADER_TARGET=${GRADER_TARGET:-openai-grader} LEGAL_DOCUMENT_EVALS_ROOT=${LEGAL_DOCUMENT_EVALS_ROOT:-$PWD} STATEFUL_SWARM_MOCK=true bun run scripts/check-stateful-swarm-contract.ts",
     "check:document-intelligence-contract": "bun run check:stateful-swarm-contract",
     "eval:dry": "GRADER_TARGET=${GRADER_TARGET:-openai-grader} agentv eval evals/legal-document-agent.eval.yaml --targets .agentv/targets.yaml --target legal-document-agent --test-id corporate-ma-extract-change-of-control-provisions --dry-run --threshold 0",
