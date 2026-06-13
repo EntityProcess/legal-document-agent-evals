@@ -35,9 +35,8 @@ Targets decide how the work is executed:
 - `legal-document-agent` asks a Codex-style coding agent to read the workspace documents and return Markdown sections for the requested deliverables.
 - `legal-document-agent-stateful-swarm` is the primary Irys-inspired AgentV-native approximation. It ingests task documents, runs staged plan/extract/analyze/synthesize prompts through an OpenAI-compatible endpoint, persists a blackboard/state artifact, and emits AgentV CLI-provider JSON for the same grader. It is **not** the upstream Irys harness.
 - `legal-document-agent-irys-upstream` is an optional reference wrapper around upstream `irys run <task_dir>`. It preserves upstream artifacts and extracts deliverable text for AgentV, but the inspected upstream path is Gemini/Google-backed and externally credential/executable dependent.
-- `legal-document-agent-irys-upstream-litellm` runs the same upstream `irys run <task_dir>` path without forking Irys. It points upstream's Google GenAI client at a local LiteLLM proxy that accepts Gemini `generateContent` requests and forwards them to the OpenAI-compatible endpoint configured by `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `OPENAI_MODEL`.
 
-The same `evals/legal-document-agent.eval.yaml` stays canonical; targets are swappable by target name. The existing Codex target remains the documented default. Use `--target legal-document-agent-stateful-swarm` for the AgentV-native stateful-swarm approximation, `--target legal-document-agent-irys-upstream-litellm` for the original upstream harness through an OpenAI-compatible backend, or `--target legal-document-agent-irys-upstream` only when you explicitly want direct Gemini credentials.
+The same `evals/legal-document-agent.eval.yaml` stays canonical; targets are swappable by target name. The existing Codex target remains the documented default. Use `--target legal-document-agent-stateful-swarm` for the provider-flexible stateful-swarm approximation, or `--target legal-document-agent-irys-upstream` only when you explicitly want to exercise upstream Irys.
 
 ## Initial task subset
 
@@ -63,10 +62,8 @@ AgentV can compare the existing Codex/AgentV path, the provider-flexible statefu
 | `stateful-swarm` | Alias for `legal-document-agent-stateful-swarm` | Same as above | Same as above |
 | `legal-document-agent-irys-upstream` | Optional AgentV `cli` wrapper around upstream `irys run <task_dir>` | Text extracted from upstream native deliverables | Upstream output files, `metrics.json`, `status.json`, `swarm/*`, optional `scores.json` under `.agentv/harness-artifacts/irys-upstream/` |
 | `irys-stateful-swarms-upstream` | Alias for `legal-document-agent-irys-upstream` | Same as upstream wrapper | Same as upstream wrapper |
-| `legal-document-agent-irys-upstream-litellm` | Same upstream `irys run <task_dir>`, with `GOOGLE_GEMINI_BASE_URL` pointing at LiteLLM's native Gemini router | Text extracted from upstream native deliverables | Same upstream artifact directory as the direct wrapper |
-| `irys-stateful-swarms-upstream-litellm` | Alias for `legal-document-agent-irys-upstream-litellm` | Same as LiteLLM-backed upstream wrapper | Same as LiteLLM-backed upstream wrapper |
 
-This demonstrates the intended AgentV layering: the eval suite, grader prompt, workspace source pin, and results shape remain canonical while target names swap the implementation. The stateful-swarm approximation is still useful as a small AgentV-native harness-style target; the LiteLLM-backed upstream target is the fidelity path for the original Irys harness without maintaining an upstream fork.
+The stateful-swarm approximation exists because upstream Irys is coupled to its own provider assumptions and benchmark runner shape. It borrows the useful research pattern—staged work plus persisted state/provenance—while staying provider-flexible and AgentV-native. The exact upstream wrapper remains useful for fidelity checks, but it is not the primary path for portable OpenAI/Azure/Gemini comparisons.
 
 ## Prerequisites
 
@@ -130,32 +127,6 @@ GEMINI_API_KEY=<local-secret>
 
 The upstream Irys preflight checks for variable names and local paths only. It must not print resolved secret values. `OPENAI_API_KEY` does not satisfy the upstream wrapper because the inspected upstream `irys run` path does not route through an OpenAI provider.
 
-For the original upstream Irys harness through an OpenAI-compatible backend, run a local LiteLLM proxy and select the LiteLLM target:
-
-```bash
-AGENT_TARGET=legal-document-agent-irys-upstream-litellm
-LEGAL_DOCUMENT_EVALS_ROOT=/absolute/path/to/legal-document-agent-evals
-IRYS_STATEFUL_SWARMS_REPO_PATH=/absolute/path/to/irys-stateful-swarms
-
-# Backend that LiteLLM forwards to.
-OPENAI_API_KEY=<local-secret>
-OPENAI_MODEL=gpt-5.5
-# OPENAI_BASE_URL=https://your-compatible-endpoint/v1
-
-# Gemini-compatible surface that upstream Irys talks to.
-IRYS_USE_LITELLM_PROXY=true
-IRYS_LITELLM_BASE_URL=http://127.0.0.1:4000
-IRYS_LITELLM_VIRTUAL_KEY=sk-agentv-local-litellm
-```
-
-Start the proxy in one terminal:
-
-```bash
-bun run start:irys-litellm-proxy
-```
-
-Then run `bun run setup:irys-upstream-litellm` or an AgentV eval in another terminal. The proxy config generated under `tmp/` uses LiteLLM's `model_group_alias` to map upstream Gemini model names (for example `gemini-3.1-flash-lite` and `gemini-3.5-flash`) to one configured OpenAI-compatible model group. It references secrets as `os.environ/OPENAI_API_KEY` instead of writing resolved keys to disk.
-
 ## Run
 
 Preflight local provider configuration:
@@ -174,12 +145,6 @@ Preflight the optional upstream Irys wrapper:
 
 ```bash
 bun run setup:irys-upstream
-```
-
-Preflight the LiteLLM-backed upstream Irys wrapper after starting the proxy:
-
-```bash
-bun run setup:irys-upstream-litellm
 ```
 
 Validate the eval file:
@@ -219,13 +184,6 @@ Run deterministic no-secrets wrapper contract checks:
 
 ```bash
 STATEFUL_SWARM_MOCK=true bun run check:stateful-swarm-contract
-bun run check:irys-litellm-contract
-```
-
-The default Irys/LiteLLM contract check starts a fake Gemini-compatible endpoint and proves unmodified upstream `GeminiCaller` honors the `GOOGLE_GEMINI_BASE_URL` route used by the LiteLLM target. To also start a real local LiteLLM proxy with a fake OpenAI-compatible backend and verify Gemini `generateContent` is translated into `/v1/chat/completions`, run:
-
-```bash
-CHECK_LITELLM_PROXY=true bun run check:irys-litellm-contract
 ```
 
 Stateful-swarm approximation artifacts are written under `.agentv/harness-artifacts/stateful-swarm/<agentv-run-timestamp>/<test-id>/...` by default. Upstream Irys artifacts are written under `.agentv/harness-artifacts/irys-upstream/`. Those artifacts are gitignored and may contain absolute local paths or provider debug output, so scan them before copying into any public results repo.
@@ -301,11 +259,6 @@ agentv eval evals/legal-document-agent.eval.yaml \
   --targets .agentv/targets.yaml \
   --target legal-document-agent-irys-upstream \
   --test-id corporate-ma-extract-change-of-control-provisions
-
-agentv eval evals/legal-document-agent.eval.yaml \
-  --targets .agentv/targets.yaml \
-  --target legal-document-agent-irys-upstream-litellm \
-  --test-id corporate-ma-extract-change-of-control-provisions
 ```
 
 Then compare the AgentV run artifacts/results using the normal AgentV results and Dashboard workflows. This keeps the eval suite, grader prompt, result repository, and Dashboard registration portable while treating each harness as a target implementation.
@@ -333,13 +286,12 @@ Native Harvey runs write `results/<run-id>/output/`, `metrics.json`, `transcript
 
 Irys/stateful-swarms is useful research context for why legal/document-intelligence evals matter: it explores persistent blackboard state, source provenance, gap detection, and multi-worker synthesis over document corpora. Those ideas overlap with AgentV eval patterns for longitudinal state, cost, and quality.
 
-This project includes an AgentV-native stateful-swarm approximation inspired by Irys, plus exact upstream Irys wrappers. The distinction matters:
+This project includes an AgentV-native stateful-swarm approximation inspired by Irys, plus an optional exact upstream Irys wrapper. The distinction matters:
 
 - The stateful-swarm approximation is provider-flexible and uses OpenAI-compatible env. It is meant for portable AgentV target comparisons.
-- The direct upstream wrapper is fidelity-oriented and uses real Gemini/Google credentials.
-- The LiteLLM-backed upstream wrapper is also fidelity-oriented: it still runs upstream `irys run`, but routes upstream Gemini requests through LiteLLM to an OpenAI-compatible backend.
+- The upstream wrapper is fidelity-oriented. It runs upstream `irys run` and preserves upstream artifacts, but it is Gemini/Google-backed in the inspected source.
 
-Provider truth: upstream Irys lists OpenAI and Anthropic as optional/research-provider dependencies in project metadata, and its `ModelCaller` protocol would make a fork plausible. However, inspected `runner.py`, `cli.py`, `bench.py`, and `scoring.py` directly instantiate `GeminiCaller`, and only `src/providers/gemini.py` is present. Forking Irys to add `OpenAICaller` plus a provider factory would create a separate maintenance surface outside this eval repo. The LiteLLM target avoids that fork by using LiteLLM's native Gemini router and model aliases; official LiteLLM docs describe using the Google GenAI SDK with LiteLLM while preserving the native Gemini request/response format and routing Gemini model names to OpenAI or other providers via `model_group_alias`.
+Provider truth: upstream Irys lists OpenAI and Anthropic as optional/research-provider dependencies in project metadata, and its `ModelCaller` protocol would make a fork plausible. However, inspected `runner.py`, `cli.py`, `bench.py`, and `scoring.py` directly instantiate `GeminiCaller`, and only `src/providers/gemini.py` is present. Forking Irys to add `OpenAICaller` plus a provider factory would create a separate maintenance surface outside this eval repo, so this PR keeps provider flexibility in the AgentV-native approximation instead of forking upstream.
 
 Treat upstream benchmark numbers as project-reported unless independently rescored from artifacts.
 

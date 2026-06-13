@@ -7,12 +7,8 @@
  *
  *   AgentV eval case -> this CLI target -> `irys run <harvey task dir>`
  *
- * Current inspected Irys source routes `irys run` through GeminiCaller. The
- * direct upstream target uses GEMINI_API_KEY, GOOGLE_API_KEY, or GEMINI_API_KEYS.
- * The LiteLLM-backed target keeps upstream unmodified by pointing the Google
- * GenAI SDK at a local LiteLLM native Gemini router (`IRYS_USE_LITELLM_PROXY=true`),
- * which then forwards Gemini-style generateContent requests to OPENAI_BASE_URL /
- * OPENAI_API_KEY / OPENAI_MODEL.
+ * Current inspected Irys source routes `irys run` through GeminiCaller, so
+ * this optional upstream target requires GEMINI_API_KEY, GOOGLE_API_KEY, or GEMINI_API_KEYS.
  *
  * The wrapper writes two outputs:
  * - Native Irys/Harvey artifacts under `.agentv/harness-artifacts/irys-upstream/`
@@ -97,37 +93,15 @@ function repoRoot(): string {
 }
 
 function hasIrysCredential(): boolean {
-  if (litellmProxyMode()) return true;
   return Boolean(env('GEMINI_API_KEY') || env('GOOGLE_API_KEY') || env('GEMINI_API_KEYS'));
 }
 
 function credentialHelp(): string {
-  if (litellmProxyMode()) {
-    return 'Start the LiteLLM proxy and set OPENAI_API_KEY plus OPENAI_MODEL for the OpenAI-compatible backend.';
-  }
   return 'Set GEMINI_API_KEY, GOOGLE_API_KEY, or GEMINI_API_KEYS for the Irys provider.';
-}
-
-function litellmProxyMode(): boolean {
-  return ['1', 'true', 'yes'].includes((env('IRYS_USE_LITELLM_PROXY') ?? '').toLowerCase());
-}
-
-function litellmBaseUrl(): string {
-  return (env('IRYS_LITELLM_BASE_URL') ?? env('GOOGLE_GEMINI_BASE_URL') ?? 'http://127.0.0.1:4000').replace(/\/$/, '');
 }
 
 function childEnv(): NodeJS.ProcessEnv {
   const next = { ...process.env };
-  if (litellmProxyMode()) {
-    next.GOOGLE_GEMINI_BASE_URL = litellmBaseUrl();
-    next.GEMINI_API_KEY =
-      env('IRYS_LITELLM_VIRTUAL_KEY') ??
-      env('LITELLM_VIRTUAL_KEY') ??
-      env('GEMINI_API_KEY') ??
-      'sk-agentv-local-litellm';
-    return next;
-  }
-
   if (!env('GEMINI_API_KEY') && !env('GOOGLE_API_KEY')) {
     const firstGeminiKey = env('GEMINI_API_KEYS')
       ?.split(',')
@@ -218,26 +192,6 @@ function checkOnly(): void {
     failures.push(credentialHelp());
   }
 
-  if (litellmProxyMode()) {
-    if (/\/gemini$/i.test(litellmBaseUrl())) {
-      failures.push(
-        'IRYS_LITELLM_BASE_URL should point at the LiteLLM proxy root (for example http://127.0.0.1:4000), not the /gemini pass-through route.',
-      );
-    }
-    if (!env('OPENAI_MODEL')) {
-      failures.push('Set OPENAI_MODEL for the OpenAI-compatible backend behind LiteLLM.');
-    }
-    if (!env('OPENAI_API_KEY')) {
-      failures.push('Set OPENAI_API_KEY for the OpenAI-compatible backend behind LiteLLM.');
-    }
-    if (!isUrlReachable(`${litellmBaseUrl()}/health/liveliness`)) {
-      failures.push(
-        `LiteLLM proxy is not reachable at ${litellmBaseUrl()}. ` +
-          'Start it first with `bun run start:irys-litellm-proxy`.',
-      );
-    }
-  }
-
   if (failures.length > 0) {
     throw new Error(
       [
@@ -251,25 +205,7 @@ function checkOnly(): void {
 
   const help = runCommand(irysCommandArgs(['--help']), 30, irysWorkingDirectory());
   assertOk(help, 'Irys CLI preflight');
-  console.log(
-    litellmProxyMode()
-      ? 'Upstream Irys/stateful-swarms LiteLLM target preflight passed.'
-      : 'Upstream Irys/stateful-swarms target preflight passed.',
-  );
-}
-
-function isUrlReachable(url: string): boolean {
-  const script = String.raw`
-import sys
-import urllib.request
-
-try:
-    with urllib.request.urlopen(sys.argv[1], timeout=3) as response:
-        sys.exit(0 if 200 <= response.status < 300 else 1)
-except Exception:
-    sys.exit(1)
-`;
-  return runCommand(['python3', '-c', script, url], 5).status === 0;
+  console.log('Upstream Irys/stateful-swarms target preflight passed.');
 }
 
 function readPrompt(promptFile: string | undefined): string {

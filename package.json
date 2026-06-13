@@ -7,15 +7,11 @@
     "setup": "bun run scripts/setup.ts",
     "setup:stateful-swarm": "LEGAL_DOCUMENT_EVALS_ROOT=${LEGAL_DOCUMENT_EVALS_ROOT:-$PWD} AGENT_TARGET=legal-document-agent-stateful-swarm bun run scripts/setup.ts --check-stateful-swarm",
     "setup:irys-upstream": "LEGAL_DOCUMENT_EVALS_ROOT=${LEGAL_DOCUMENT_EVALS_ROOT:-$PWD} AGENT_TARGET=legal-document-agent-irys-upstream bun run scripts/setup.ts --check-irys-upstream",
-    "setup:irys-upstream-litellm": "LEGAL_DOCUMENT_EVALS_ROOT=${LEGAL_DOCUMENT_EVALS_ROOT:-$PWD} AGENT_TARGET=legal-document-agent-irys-upstream-litellm IRYS_USE_LITELLM_PROXY=true bun run scripts/setup.ts --check-irys-upstream-litellm",
-    "start:irys-litellm-proxy": "bash scripts/start-irys-litellm-proxy.sh",
     "generate": "bun run scripts/generate-eval-from-harvey.ts",
     "validate": "GRADER_TARGET=${GRADER_TARGET:-openai-grader} agentv validate evals/legal-document-agent.eval.yaml",
     "check:stateful-swarm-contract": "GRADER_TARGET=${GRADER_TARGET:-openai-grader} LEGAL_DOCUMENT_EVALS_ROOT=${LEGAL_DOCUMENT_EVALS_ROOT:-$PWD} STATEFUL_SWARM_MOCK=true bun run scripts/check-stateful-swarm-contract.ts",
-    "check:irys-litellm-contract": "LEGAL_DOCUMENT_EVALS_ROOT=${LEGAL_DOCUMENT_EVALS_ROOT:-$PWD} bun run scripts/check-irys-litellm-contract.ts",
     "eval:dry": "GRADER_TARGET=${GRADER_TARGET:-openai-grader} agentv eval evals/legal-document-agent.eval.yaml --targets .agentv/targets.yaml --target legal-document-agent --test-id corporate-ma-extract-change-of-control-provisions --dry-run --threshold 0",
     "eval:stateful-swarm:dry": "GRADER_TARGET=${GRADER_TARGET:-openai-grader} LEGAL_DOCUMENT_EVALS_ROOT=${LEGAL_DOCUMENT_EVALS_ROOT:-$PWD} agentv eval evals/legal-document-agent.eval.yaml --targets .agentv/targets.yaml --target legal-document-agent-stateful-swarm --test-id corporate-ma-extract-change-of-control-provisions --dry-run --threshold 0",
-    "eval:irys-upstream:smoke": "GRADER_TARGET=${GRADER_TARGET:-openai-grader} LEGAL_DOCUMENT_EVALS_ROOT=${LEGAL_DOCUMENT_EVALS_ROOT:-$PWD} agentv eval evals/legal-document-agent.eval.yaml --targets .agentv/targets.yaml --target legal-document-agent-irys-upstream --test-id corporate-ma-extract-change-of-control-provisions",
-    "eval:irys-upstream-litellm:smoke": "GRADER_TARGET=${GRADER_TARGET:-openai-grader} LEGAL_DOCUMENT_EVALS_ROOT=${LEGAL_DOCUMENT_EVALS_ROOT:-$PWD} IRYS_USE_LITELLM_PROXY=true agentv eval evals/legal-document-agent.eval.yaml --targets .agentv/targets.yaml --target legal-document-agent-irys-upstream-litellm --test-id corporate-ma-extract-change-of-control-provisions"
+    "eval:irys-upstream:smoke": "GRADER_TARGET=${GRADER_TARGET:-openai-grader} LEGAL_DOCUMENT_EVALS_ROOT=${LEGAL_DOCUMENT_EVALS_ROOT:-$PWD} agentv eval evals/legal-document-agent.eval.yaml --targets .agentv/targets.yaml --target legal-document-agent-irys-upstream --test-id corporate-ma-extract-change-of-control-provisions"
   }
 }

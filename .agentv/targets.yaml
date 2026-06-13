@@ -56,24 +56,6 @@ targets:
   - name: irys-stateful-swarms-upstream
     use_target: legal-document-agent-irys-upstream
 
-  - name: legal-document-agent-irys-upstream-litellm
-    provider: cli
-    command: >-
-      IRYS_USE_LITELLM_PROXY=true bun run "${LEGAL_DOCUMENT_EVALS_ROOT:?Set LEGAL_DOCUMENT_EVALS_ROOT to this legal-document-agent-evals checkout}/scripts/run-irys-upstream-agentv-target.ts"
-      --eval-id {EVAL_ID}
-      --prompt-file {PROMPT_FILE}
-      --output-file {OUTPUT_FILE}
-    timeout_seconds: 7200
-    grader_target: grader
-    healthcheck:
-      command: >-
-        IRYS_USE_LITELLM_PROXY=true bun run "${LEGAL_DOCUMENT_EVALS_ROOT:?Set LEGAL_DOCUMENT_EVALS_ROOT to this legal-document-agent-evals checkout}/scripts/run-irys-upstream-agentv-target.ts"
-        --check-only
-      timeout_seconds: 60
-
-  - name: irys-stateful-swarms-upstream-litellm
-    use_target: legal-document-agent-irys-upstream-litellm
-
   - name: codex
     use_target: legal-document-agent
 
