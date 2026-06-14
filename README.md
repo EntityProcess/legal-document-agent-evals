@@ -1,4 +1,4 @@
-# legal-document-agent-evals
+# legal-document-intelligence-evals
 
 AgentV eval project for public legal/document-intelligence agents.
 
@@ -25,7 +25,7 @@ The AgentV-native target reads the skill text and uses it as the behavior contra
 
 ## Baseline results
 
-A public baseline report is available in [BASELINE_RESULTS.md](BASELINE_RESULTS.md). It explains the live `document-intelligence` run, per-case scores, `.eml` coverage, limitations, and how the published AgentV artifacts demonstrate the eval-pack pattern.
+A public baseline report is available in [BASELINE_RESULTS.md](BASELINE_RESULTS.md). It explains the live `document-intelligence` run, per-case scores, `.eml` coverage, limitations, and how the published AgentV artifacts demonstrate the eval-pack pattern. The published dashboard-style static report is served at https://entityprocess.github.io/legal-document-intelligence-evals-results/.
 
 ## Source pin
 
@@ -89,7 +89,7 @@ For the default `legal-document-agent` target, configure a Codex-style coding ag
 
 ```bash
 AGENT_TARGET=legal-document-agent
-LEGAL_DOCUMENT_EVALS_ROOT=/absolute/path/to/legal-document-agent-evals
+LEGAL_DOCUMENT_EVALS_ROOT=/absolute/path/to/legal-document-intelligence-evals
 CODEX_EXECUTABLE=codex-eng
 CODEX_MODEL=gpt-5.5
 CODEX_REASONING_EFFORT=low
@@ -113,7 +113,7 @@ For the primary document-intelligence skill workflow target, configure:
 
 ```bash
 AGENT_TARGET=legal-document-agent-stateful-swarm
-LEGAL_DOCUMENT_EVALS_ROOT=/absolute/path/to/legal-document-agent-evals
+LEGAL_DOCUMENT_EVALS_ROOT=/absolute/path/to/legal-document-intelligence-evals
 DOCUMENT_INTELLIGENCE_SKILL_PATH=skills/document-intelligence/SKILL.md
 
 # Live mode: OpenAI-compatible chat-completions endpoint.
@@ -133,7 +133,7 @@ For the optional reference-only upstream Irys wrapper, configure separately only
 
 ```bash
 AGENT_TARGET=legal-document-agent-irys-upstream
-LEGAL_DOCUMENT_EVALS_ROOT=/absolute/path/to/legal-document-agent-evals
+LEGAL_DOCUMENT_EVALS_ROOT=/absolute/path/to/legal-document-intelligence-evals
 IRYS_STATEFUL_SWARMS_REPO_PATH=/absolute/path/to/irys-stateful-swarms
 # or IRYS_EXECUTABLE=irys
 
@@ -210,8 +210,8 @@ During AgentV repository development, prefer the source CLI from an AgentV check
 
 ```bash
 bun /path/to/agentv/apps/cli/src/cli.ts eval \
-  /path/to/legal-document-agent-evals/evals/legal-document-agent.eval.yaml \
-  --targets /path/to/legal-document-agent-evals/.agentv/targets.yaml \
+  /path/to/legal-document-intelligence-evals/evals/legal-document-agent.eval.yaml \
+  --targets /path/to/legal-document-intelligence-evals/.agentv/targets.yaml \
   --target document-intelligence \
   --test-id corporate-ma-extract-change-of-control-provisions \
   --dry-run \
@@ -246,8 +246,8 @@ Public-safe result artifacts belong in the separate repository:
 ```yaml
 results:
   mode: github
-  repo: EntityProcess/legal-document-agent-evals-results
-  path: /path/to/legal-document-agent-evals-results
+  repo: EntityProcess/legal-document-intelligence-evals-results
+  path: /path/to/legal-document-intelligence-evals-results
   auto_push: false
   branch_prefix: eval-results
 ```

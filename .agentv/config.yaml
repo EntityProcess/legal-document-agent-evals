@@ -5,6 +5,6 @@ execution:
   workers: 1
 results:
   mode: github
-  repo: EntityProcess/legal-document-agent-evals-results
+  repo: EntityProcess/legal-document-intelligence-evals-results
   auto_push: false
   branch_prefix: eval-results

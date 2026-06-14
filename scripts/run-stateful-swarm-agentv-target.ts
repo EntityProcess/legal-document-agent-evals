@@ -105,7 +105,7 @@ function checkOnly(): void {
   const failures: string[] = [];
   const evalsRoot = env('LEGAL_DOCUMENT_EVALS_ROOT');
   if (!evalsRoot) {
-    failures.push('Set LEGAL_DOCUMENT_EVALS_ROOT to this legal-document-agent-evals checkout.');
+    failures.push('Set LEGAL_DOCUMENT_EVALS_ROOT to this legal-document-intelligence-evals checkout.');
   } else if (!existsSync(path.join(path.resolve(evalsRoot), 'scripts/run-stateful-swarm-agentv-target.ts'))) {
     failures.push('LEGAL_DOCUMENT_EVALS_ROOT must point at this checkout with scripts/run-stateful-swarm-agentv-target.ts.');
   }

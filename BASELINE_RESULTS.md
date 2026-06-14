@@ -85,10 +85,11 @@ That means the legal specialization is portable. The benchmark can compare `lega
 
 The sanitized live run is published in the separate public results repository:
 
-- Run summary: https://github.com/EntityProcess/legal-document-agent-evals-results/blob/8733eec09196b6ac2b68b9e1983966e085598e02/.agentv/results/runs/live-document-intelligence-2026-06-13T22-50-31Z/SUMMARY.md
-- Raw AgentV result index: https://github.com/EntityProcess/legal-document-agent-evals-results/blob/8733eec09196b6ac2b68b9e1983966e085598e02/.agentv/results/runs/live-document-intelligence-2026-06-13T22-50-31Z/index.jsonl
-- Aggregate benchmark metadata: https://github.com/EntityProcess/legal-document-agent-evals-results/blob/8733eec09196b6ac2b68b9e1983966e085598e02/.agentv/results/runs/live-document-intelligence-2026-06-13T22-50-31Z/benchmark.json
-- Full published run tree: https://github.com/EntityProcess/legal-document-agent-evals-results/tree/8733eec09196b6ac2b68b9e1983966e085598e02/.agentv/results/runs/live-document-intelligence-2026-06-13T22-50-31Z
+- Dashboard-style static report: https://entityprocess.github.io/legal-document-intelligence-evals-results/
+- Run summary: https://github.com/EntityProcess/legal-document-intelligence-evals-results/blob/8733eec09196b6ac2b68b9e1983966e085598e02/.agentv/results/runs/live-document-intelligence-2026-06-13T22-50-31Z/SUMMARY.md
+- Raw AgentV result index: https://github.com/EntityProcess/legal-document-intelligence-evals-results/blob/8733eec09196b6ac2b68b9e1983966e085598e02/.agentv/results/runs/live-document-intelligence-2026-06-13T22-50-31Z/index.jsonl
+- Aggregate benchmark metadata: https://github.com/EntityProcess/legal-document-intelligence-evals-results/blob/8733eec09196b6ac2b68b9e1983966e085598e02/.agentv/results/runs/live-document-intelligence-2026-06-13T22-50-31Z/benchmark.json
+- Full published run tree: https://github.com/EntityProcess/legal-document-intelligence-evals-results/tree/8733eec09196b6ac2b68b9e1983966e085598e02/.agentv/results/runs/live-document-intelligence-2026-06-13T22-50-31Z
 
 The published run intentionally excludes provider logs, local run logs, local environment files, OAuth files, and raw harness-artifact directories. The result copy was sanitized before publication so public readers can inspect AgentV-ready artifacts without exposing private provider configuration.
 
