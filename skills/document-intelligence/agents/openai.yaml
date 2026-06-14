@@ -1,0 +1,4 @@
+interface:
+  display_name: "Document Intelligence"
+  short_description: "Evidence-grounded document analysis workflow"
+  default_prompt: "Use $document-intelligence to analyze the document set with evidence citations."

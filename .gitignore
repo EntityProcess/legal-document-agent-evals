@@ -9,8 +9,10 @@ node_modules/
 .agentv/workspace-pool/
 .agentv/logs/
 .agentv/codex-workspaces/
+.agentv/harness-artifacts/
 results/
 tmp/
 
 # Local source checkout used for regeneration only.
 harvey-labs/
+irys-stateful-swarms/

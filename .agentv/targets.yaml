@@ -2,7 +2,7 @@ schema: agentv-targets-v2.2
 
 targets:
   - name: default
-    use_target: "${{ AGENT_TARGET }}"
+    use_target: legal-document-agent
 
   - name: legal-document-agent
     provider: codex
@@ -20,11 +20,50 @@ targets:
       concise Markdown sections, with enough concrete detail and source references for a
       supervising reviewer to apply the rubric.
 
+  - name: legal-document-agent-stateful-swarm
+    provider: cli
+    command: >-
+      bun run "${LEGAL_DOCUMENT_EVALS_ROOT:?Set LEGAL_DOCUMENT_EVALS_ROOT to this legal-document-agent-evals checkout}/scripts/run-stateful-swarm-agentv-target.ts"
+      --eval-id {EVAL_ID}
+      --prompt-file {PROMPT_FILE}
+      --output-file {OUTPUT_FILE}
+    timeout_seconds: 7200
+    grader_target: grader
+    healthcheck:
+      command: >-
+        bun run "${LEGAL_DOCUMENT_EVALS_ROOT:?Set LEGAL_DOCUMENT_EVALS_ROOT to this legal-document-agent-evals checkout}/scripts/run-stateful-swarm-agentv-target.ts"
+        --check-only
+      timeout_seconds: 60
+
+  - name: stateful-swarm
+    use_target: legal-document-agent-stateful-swarm
+
+  - name: document-intelligence
+    use_target: legal-document-agent-stateful-swarm
+
+  - name: legal-document-agent-irys-upstream
+    provider: cli
+    command: >-
+      bun run "${LEGAL_DOCUMENT_EVALS_ROOT:?Set LEGAL_DOCUMENT_EVALS_ROOT to this legal-document-agent-evals checkout}/scripts/run-irys-upstream-agentv-target.ts"
+      --eval-id {EVAL_ID}
+      --prompt-file {PROMPT_FILE}
+      --output-file {OUTPUT_FILE}
+    timeout_seconds: 7200
+    grader_target: grader
+    healthcheck:
+      command: >-
+        bun run "${LEGAL_DOCUMENT_EVALS_ROOT:?Set LEGAL_DOCUMENT_EVALS_ROOT to this legal-document-agent-evals checkout}/scripts/run-irys-upstream-agentv-target.ts"
+        --check-only
+      timeout_seconds: 60
+
+  - name: irys-stateful-swarms-upstream
+    use_target: legal-document-agent-irys-upstream
+
   - name: codex
     use_target: legal-document-agent
 
   - name: grader
-    use_target: "${{ GRADER_TARGET }}"
+    use_target: ${{ GRADER_TARGET }}
 
   - name: openai-grader
     provider: openai
