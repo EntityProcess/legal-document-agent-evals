@@ -217,7 +217,7 @@ function main() {
   const failures = checks.filter((check) => !check.ok);
 
   if (failures.length > 0) {
-    console.error('legal-document-agent-evals AgentV setup is incomplete.');
+    console.error('legal-document-intelligence-evals AgentV setup is incomplete.');
     console.error('Missing or invalid prerequisites:');
     for (const failure of failures) {
       console.error(`- ${failure.message}`);
@@ -229,7 +229,7 @@ function main() {
 
   if (!process.argv.includes('--check-only')) {
     ensureLocalDirectories();
-    console.log('legal-document-agent-evals AgentV setup check passed.');
+    console.log('legal-document-intelligence-evals AgentV setup check passed.');
     console.log(`Harvey LAB source commit: ${env('HARVEY_LABS_COMMIT') ?? HARVEY_PINNED_COMMIT}`);
   }
 }

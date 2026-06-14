@@ -175,7 +175,7 @@ function checkOnly(): void {
 
   if (!env('LEGAL_DOCUMENT_EVALS_ROOT')) {
     failures.push(
-      'Set LEGAL_DOCUMENT_EVALS_ROOT to this legal-document-agent-evals checkout. ' +
+      'Set LEGAL_DOCUMENT_EVALS_ROOT to this legal-document-intelligence-evals checkout. ' +
         'AgentV workspace targets execute from temp workspaces, so the wrapper path must be absolute.',
     );
   }
